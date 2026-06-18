@@ -207,6 +207,10 @@
       const isEdit = !!initialData;
       const [formData, setFormData] = useState(isEdit ? initialData : { category: '중2 과학', unit: '1단원', name: '', url: '', emoji: '🧪' });
       
+      // 명시적인 '직접 입력' 모드 상태 추가 (입력 도중 창이 사라지는 버그 방지)
+      const [isCustomCat, setIsCustomCat] = useState(!categories.includes(formData.category));
+      const [isCustomUnit, setIsCustomUnit] = useState(!units.includes(formData.unit));
+
       const handleSubmit = () => {
         if(!formData.name || !formData.url || !formData.emoji || !formData.category || !formData.unit) {
           alert('모든 필드를 입력해주세요.');
@@ -215,45 +219,51 @@
         onSave(isEdit ? 'update' : 'create', formData);
       };
 
-      // 현재 입력된 값이 기존 목록에 없는 새로운 값인지 확인
-      const isCatCustom = !categories.includes(formData.category);
-      const isUnitCustom = !units.includes(formData.unit);
-
       return (
         <ModalOverlay onClose={onClose}>
           <h3 className="text-xl font-bold mb-4">{isEdit ? '웹앱 수정' : '새 웹앱 추가'}</h3>
           
           <label className="text-sm font-bold mb-1">대분류 (사이드바 탭)</label>
           <select 
-            className={`bevel-inset p-2 w-full text-black bg-white ${isCatCustom ? 'mb-2' : 'mb-4'}`}
-            value={isCatCustom ? 'custom' : formData.category}
+            className={`bevel-inset p-2 w-full text-black bg-white ${isCustomCat ? 'mb-2' : 'mb-4'}`}
+            value={isCustomCat ? 'custom' : formData.category}
             onChange={e => {
-              if (e.target.value === 'custom') setFormData({...formData, category: ''});
-              else setFormData({...formData, category: e.target.value});
+              if (e.target.value === 'custom') {
+                setIsCustomCat(true);
+                setFormData({...formData, category: ''});
+              } else {
+                setIsCustomCat(false);
+                setFormData({...formData, category: e.target.value});
+              }
             }}
           >
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
             <option value="custom">➕ 직접 입력 (새 대분류)</option>
           </select>
-          {isCatCustom && (
-            <input type="text" className="bevel-inset p-2 mb-4 w-full text-black bg-white"
+          {isCustomCat && (
+            <input type="text" className="bevel-inset p-2 mb-4 w-full text-black bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} placeholder="새 대분류 이름 입력" />
           )}
 
           <label className="text-sm font-bold mb-1">소분류 (단원 등)</label>
           <select 
-            className={`bevel-inset p-2 w-full text-black bg-white ${isUnitCustom ? 'mb-2' : 'mb-4'}`}
-            value={isUnitCustom ? 'custom' : formData.unit}
+            className={`bevel-inset p-2 w-full text-black bg-white ${isCustomUnit ? 'mb-2' : 'mb-4'}`}
+            value={isCustomUnit ? 'custom' : formData.unit}
             onChange={e => {
-              if (e.target.value === 'custom') setFormData({...formData, unit: ''});
-              else setFormData({...formData, unit: e.target.value});
+              if (e.target.value === 'custom') {
+                setIsCustomUnit(true);
+                setFormData({...formData, unit: ''});
+              } else {
+                setIsCustomUnit(false);
+                setFormData({...formData, unit: e.target.value});
+              }
             }}
           >
             {units.map(u => <option key={u} value={u}>{u}</option>)}
             <option value="custom">➕ 직접 입력 (새 소분류)</option>
           </select>
-          {isUnitCustom && (
-            <input type="text" className="bevel-inset p-2 mb-4 w-full text-black bg-white"
+          {isCustomUnit && (
+            <input type="text" className="bevel-inset p-2 mb-4 w-full text-black bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} placeholder="새 소분류 이름 입력" />
           )}
 
