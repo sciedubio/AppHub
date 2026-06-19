@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>중2 과학 웹앱 허브</title>
+  <title>과학 웹앱 허브</title>
   
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#2d3748">
@@ -168,6 +168,9 @@
       }
     };
 
+    // 자연 정렬(Natural Sort) 헬퍼 함수: '10단원'이 '2단원' 뒤에 오도록 똑똑하게 정렬
+    const naturalSort = (a, b) => new Intl.Collator('ko', { numeric: true, sensitivity: 'base' }).compare(a, b);
+
     // --- Components ---
 
     const QRCodeViewer = ({ url, size = 64, onClick }) => {
@@ -206,16 +209,17 @@
     const AppFormModal = ({ initialData, categories, units, onSave, onClose }) => {
       const isEdit = !!initialData;
       const [formData, setFormData] = useState(isEdit ? initialData : { category: '중2 과학', unit: '1단원', name: '', url: '', emoji: '🧪' });
+      const [errorMsg, setErrorMsg] = useState('');
       
-      // 명시적인 '직접 입력' 모드 상태 추가 (입력 도중 창이 사라지는 버그 방지)
       const [isCustomCat, setIsCustomCat] = useState(!categories.includes(formData.category));
       const [isCustomUnit, setIsCustomUnit] = useState(!units.includes(formData.unit));
 
       const handleSubmit = () => {
         if(!formData.name || !formData.url || !formData.emoji || !formData.category || !formData.unit) {
-          alert('모든 필드를 입력해주세요.');
+          setErrorMsg('모든 필드를 빠짐없이 입력해주세요.');
           return;
         }
+        setErrorMsg('');
         onSave(isEdit ? 'update' : 'create', formData);
       };
 
@@ -279,8 +283,10 @@
             value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="예: 화산 폭발 시뮬레이션" />
 
           <label className="text-sm font-bold mb-1">URL 링크</label>
-          <input type="url" className="bevel-inset p-2 mb-6 w-full text-black bg-white"
+          <input type="url" className="bevel-inset p-2 mb-4 w-full text-black bg-white"
             value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} placeholder="https://..." />
+
+          {errorMsg && <p className="text-red-600 text-sm font-bold mb-4">{errorMsg}</p>}
 
           <div className="flex justify-end gap-2 mt-auto">
             <button onClick={onClose} className="bevel-btn px-4 py-2 bg-gray-400">취소</button>
@@ -300,23 +306,24 @@
       const [selectedUnit, setSelectedUnit] = useState('전체');
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
       
-      const [adminPw, setAdminPw] = useState(''); // 현재 로그인된 비밀번호 세션 상태
-      const [modal, setModal] = useState({ type: null, data: null }); // type: 'password', 'qr', 'guide', 'alert', 'appForm'
+      const [adminPw, setAdminPw] = useState('');
+      const [modal, setModal] = useState({ type: null, data: null });
 
-      // 관리자 패널용 전용 필터 상태
       const [adminCategoryFilter, setAdminCategoryFilter] = useState('전체');
       const [adminUnitFilter, setAdminUnitFilter] = useState('전체');
 
-      // 카테고리 동적 생성 (기본값 + 등록된 앱의 카테고리들)
+      // 카테고리 동적 생성 (가나다/숫자 오름차순 자연 정렬 적용)
       const allCategories = useMemo(() => {
         const currentCats = apps.map(app => app.category).filter(Boolean);
-        return Array.from(new Set([...DEFAULT_CATEGORIES, ...currentCats]));
+        const uniqueCats = Array.from(new Set([...DEFAULT_CATEGORIES, ...currentCats]));
+        return uniqueCats.sort(naturalSort);
       }, [apps]);
 
-      // 소분류(단원) 동적 생성 (기본값 + 등록된 앱의 소분류들)
+      // 소분류(단원) 동적 생성 (가나다/숫자 오름차순 자연 정렬 적용)
       const allUnits = useMemo(() => {
         const currentUnits = apps.map(app => app.unit).filter(Boolean);
-        return Array.from(new Set([...UNITS, ...currentUnits]));
+        const uniqueUnits = Array.from(new Set([...UNITS, ...currentUnits]));
+        return uniqueUnits.sort(naturalSort);
       }, [apps]);
 
       // Navigation Helper
@@ -368,7 +375,6 @@
             return false;
           }
           setModal({ type: 'alert', data: 'GAS URL이 설정되지 않아 로컬 임시 환경에서만 동작합니다.' });
-          // 로컬 상태 낙관적 업데이트
           if(action === 'create') setApps([...apps, { ...data, id: Date.now().toString(), date: new Date().toISOString() }]);
           if(action === 'delete') setApps(apps.filter(a => a.id !== data.id));
           if(action === 'update') setApps(apps.map(a => a.id === data.id ? data : a));
@@ -380,7 +386,6 @@
           const res = await Promise.race([
             fetch(GOOGLE_SCRIPT_URL, {
               method: 'POST',
-              // text/plain을 사용하여 CORS Preflight 요청을 우회하고 응답을 읽어옵니다.
               headers: { 'Content-Type': 'text/plain;charset=utf-8' },
               body: JSON.stringify({ action, data, password: pwToUse })
             }),
@@ -394,7 +399,7 @@
           }
           
           if (action !== 'verify') {
-            await fetchApps(); // 데이터베이스 변경 후 목록 갱신
+            await fetchApps();
           }
           return true;
         } catch(err) {
@@ -405,7 +410,7 @@
         }
       };
 
-      // Filtered Apps
+      // 학생 화면용으로 필터링된 앱 목록
       const displayedApps = useMemo(() => {
         let filtered = apps.filter(app => app.category === selectedCategory);
         if (selectedUnit !== '전체') {
@@ -414,11 +419,19 @@
         return filtered;
       }, [apps, selectedCategory, selectedUnit]);
 
-      // 관리자 패널에서 사용할 소분류 목록 (선택한 대분류에 맞게 필터링)
+      // 학생 화면 탭 전용 소분류 목록 (마찬가지로 자연 정렬)
+      const studentAvailableUnits = useMemo(() => {
+        const unitsInCat = apps.filter(a => a.category === selectedCategory).map(a => a.unit);
+        const uniqueUnits = Array.from(new Set(unitsInCat));
+        return ['전체', ...uniqueUnits.sort(naturalSort)];
+      }, [apps, selectedCategory]);
+
+      // 관리자 패널에서 사용할 소분류 목록 (자연 정렬)
       const adminAvailableUnits = useMemo(() => {
         if (adminCategoryFilter === '전체') return ['전체', ...allUnits];
         const unitsInCat = apps.filter(a => a.category === adminCategoryFilter).map(a => a.unit);
-        return ['전체', ...Array.from(new Set(unitsInCat))];
+        const uniqueUnits = Array.from(new Set(unitsInCat));
+        return ['전체', ...uniqueUnits.sort(naturalSort)];
       }, [apps, adminCategoryFilter, allUnits]);
 
       // 관리자 패널 전용으로 필터링된 앱 목록
@@ -432,6 +445,7 @@
         }
         return filtered;
       }, [apps, adminCategoryFilter, adminUnitFilter]);
+
 
       // --- Render Functions ---
 
@@ -519,7 +533,7 @@
 
           {/* Unit Tabs */}
           <div className="flex flex-wrap gap-2 mb-4">
-            {['전체', ...Array.from(new Set(apps.filter(a => a.category === selectedCategory).map(a => a.unit)))].map(unit => (
+            {studentAvailableUnits.map(unit => (
               <button
                 key={unit}
                 onClick={() => setSelectedUnit(unit)}
@@ -632,9 +646,7 @@
                       <td className="p-3 border-2 border-[#373737]">
                         <div className="flex gap-2">
                           <button onClick={() => setModal({ type: 'appForm', data: app })} className="bevel-btn px-2 py-1 bg-yellow-300 text-xs font-bold">수정</button>
-                          <button onClick={() => {
-                            if(window.confirm('정말 삭제하시겠습니까?')) syncAppAction('delete', { id: app.id });
-                          }} className="bevel-btn px-2 py-1 bg-red-400 text-xs font-bold">삭제</button>
+                          <button onClick={() => setModal({ type: 'confirmDelete', data: app })} className="bevel-btn px-2 py-1 bg-red-400 text-xs font-bold">삭제</button>
                         </div>
                       </td>
                     </tr>
@@ -655,7 +667,7 @@
 
         if (modal.type === 'password') {
           return (
-            <ModalOverlay>
+            <ModalOverlay onClose={() => setModal({ type: null })}>
               <h3 className="text-xl font-bold mb-4">관리자 인증</h3>
               <p className="mb-4 text-sm text-gray-700">비밀번호를 입력하세요.</p>
               <input type="password" id="pwInput" className="bevel-inset w-full p-3 mb-6 text-black" autoFocus />
@@ -678,7 +690,7 @@
 
         if (modal.type === 'alert') {
           return (
-            <ModalOverlay>
+            <ModalOverlay onClose={() => setModal({ type: null })}>
               <h3 className="text-xl font-bold mb-4 text-red-600">알림</h3>
               <p className="mb-6">{modal.data}</p>
               <div className="flex justify-end mt-auto">
@@ -687,11 +699,27 @@
             </ModalOverlay>
           );
         }
+        
+        if (modal.type === 'confirmDelete') {
+          return (
+            <ModalOverlay onClose={() => setModal({ type: null })}>
+              <h3 className="text-xl font-bold mb-4 text-red-600">삭제 확인</h3>
+              <p className="mb-6 break-keep">정말 <b>[{modal.data.name}]</b> 웹앱을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
+              <div className="flex justify-end gap-2 mt-auto">
+                <button onClick={() => setModal({ type: null })} className="bevel-btn px-4 py-2 bg-gray-400">취소</button>
+                <button onClick={() => {
+                  syncAppAction('delete', { id: modal.data.id });
+                  setModal({ type: null });
+                }} className="bevel-btn px-4 py-2 bg-red-400 font-bold text-white">삭제하기</button>
+              </div>
+            </ModalOverlay>
+          );
+        }
 
         if (modal.type === 'qr') {
           const app = modal.data;
           return (
-            <ModalOverlay>
+            <ModalOverlay onClose={() => setModal({ type: null })}>
               <div className="flex flex-col items-center p-4">
                 <h3 className="text-2xl font-bold mb-2">{app.name}</h3>
                 <p className="mb-6 text-sm text-gray-700 bg-gray-200 p-2 break-all">{app.url}</p>
@@ -813,7 +841,7 @@ function doPost(e) {
 }
 `;
           return (
-            <ModalOverlay>
+            <ModalOverlay onClose={() => setModal({ type: null })}>
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">⚙️ DB 연동 가이드</h3>
               <div className="bg-[#1e1e1e] text-[#d4d4d4] p-4 font-mono text-xs overflow-auto h-64 bevel-inset mb-4 text-left whitespace-pre">
                 {gasCodeText}
